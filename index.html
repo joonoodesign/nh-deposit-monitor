@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>주누디자인 NH농협 실시간 입금 확인 보드</title>
+  <meta name="description" content="주누디자인 NH농협 최근 7일 및 실시간 입금 내역 전 직원 실시간 공유 웹 프로그램" />
+  <meta name="theme-color" content="#00873c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NH입금확인" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-area">
+        <div class="brand-logo">
+          NH<span>농협</span>
+        </div>
+        <div class="brand-title">
+          <h1>
+            주누디자인 실시간 입금 확인
+            <span class="privacy-badge" title="계좌 잔액 및 출금 내역은 자동으로 제거되어 표시되지 않습니다">🔒 잔액·출금 자동보호</span>
+          </h1>
+          <div class="brand-subtitle">최근 7일(일주일) 입금 내역 &amp; 실시간 입금 전 직원 공유 보드</div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="sync-status-pill" id="syncStatusPill" onclick="openSettingsModal()" title="클릭하여 실시간 동기화 설정 확인">
+          <span class="pulse-dot" id="syncDot"></span>
+          <span id="syncStatusText">실시간 동기화 대기</span>
+        </div>
+        <button class="btn-header active-toggle" id="btnSoundToggle" onclick="toggleSoundAlert()">
+          🔔 소리·음성 ON
+        </button>
+        <button class="btn-header btn-primary-gold" onclick="openPasteModal()">
+          ➕ 입금 문자 / 7일 내역 등록
+        </button>
+        <button class="btn-header" onclick="copyStaffShareLink()">
+          🔗 직원 공유링크 복사
+        </button>
+        <button class="btn-header" onclick="openSettingsModal()">
+          ⚙️ 연동·알림 설정
+        </button>
+        <button class="btn-header" onclick="openTutorialModal()">
+          📖 사용법 튜토리얼
+        </button>
+        <button class="btn-header" onclick="toggleDarkMode()" title="다크 모드 전환">
+          🌙
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Main Content -->
+  <main class="container">
+    <!-- KPI Summary Cards -->
+    <section class="summary-grid">
+      <div class="kpi-card kpi-urgent" onclick="setStatusFilter('unconfirmed')" style="cursor:pointer;">
+        <div class="kpi-label">
+          <span>🚨 미확인 입금 (직원 확인 필요)</span>
+          <span style="font-size:11px; color:var(--danger);">클릭 시 모아보기</span>
+        </div>
+        <div class="kpi-value" id="kpiUnconfirmedCount">0건</div>
+        <div class="kpi-sub" id="kpiUnconfirmedSub">모든 입금이 확인되었습니다</div>
+      </div>
+
+      <div class="kpi-card kpi-today">
+        <div class="kpi-label">
+          <span>📅 오늘 입금 내역</span>
+          <button class="btn-icon-sm" style="padding:2px 6px; font-size:11px;" onclick="toggleShowTotalAmount()" id="btnToggleTotal">금액합계 보기</button>
+        </div>
+        <div class="kpi-value" id="kpiTodayCount">0건</div>
+        <div class="kpi-sub" id="kpiTodaySub">오늘 실시간 수신 내역</div>
+      </div>
+
+      <div class="kpi-card kpi-week">
+        <div class="kpi-label">
+          <span>🗓️ 최근 7일(일주일) 입금</span>
+          <span style="font-size:11px; color:var(--text-muted);">최근 7일 보관</span>
+        </div>
+        <div class="kpi-value" id="kpiWeekCount">0건</div>
+        <div class="kpi-sub" id="kpiWeekSub">일주일간 전체 공유 건수</div>
+      </div>
+
+      <div class="kpi-card kpi-action">
+        <div class="kpi-label">
+          <span>⚡ 실시간 테스트 &amp; 빠른 도구</span>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+          <button class="btn-icon-sm" style="background:#fffbeb; border-color:#f59e0b; color:#b45309;" onclick="triggerSampleDeposit()">
+            🔔 테스트 입금 발생
+          </button>
+          <button class="btn-icon-sm" onclick="syncNowManual()">
+            🔄 즉시 새로고침
+          </button>
+          <button class="btn-icon-sm" onclick="exportToCSV()">
+            📥 엑셀 저장
+          </button>
+        </div>
+        <div class="kpi-sub" id="lastSyncedTimeText">마지막 동기화: 방금 전</div>
+      </div>
+    </section>
+
+    <!-- Live Unconfirmed Banner -->
+    <section class="live-feed-banner" id="liveUnconfirmedBanner" style="display:none;">
+      <div class="live-feed-left">
+        <span class="badge-live-alert">LIVE 미확인</span>
+        <strong id="liveBannerText" style="font-size:15px;">새로운 농협 입금 내역이 있습니다! 확인 후 [확인완료] 버튼을 눌러주세요.</strong>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn-icon-sm" onclick="setStatusFilter('unconfirmed')">미확인만 보기</button>
+        <button class="btn-icon-sm" style="background:var(--nh-green); color:#fff; border-color:var(--nh-green);" onclick="confirmAllVisible()">현재 목록 일괄 확인완료</button>
+      </div>
+    </section>
+
+    <!-- 7-Day Tabs & Filter / Search Panel -->
+    <section class="control-panel">
+      <div class="day-tabs-row">
+        <div class="day-tabs" id="dayTabsContainer">
+          <!-- Dynamically populated: 최근 7일 전체, 오늘, 어제, D-2 ... -->
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); font-weight:600;">
+          💡 직원이 <strong>[확인완료]</strong> 또는 <strong>품목 태그·메모</strong>를 누르면 전 직원 화면에 즉시 공유됩니다.
+        </div>
+      </div>
+
+      <div class="filter-search-row">
+        <div class="status-tabs">
+          <button class="status-btn active" id="statusBtn_all" onclick="setStatusFilter('all')">전체 보기</button>
+          <button class="status-btn unconfirmed-btn" id="statusBtn_unconfirmed" onclick="setStatusFilter('unconfirmed')">🚨 미확인만</button>
+          <button class="status-btn" id="statusBtn_confirmed" onclick="setStatusFilter('confirmed')">✅ 확인완료</button>
+        </div>
+
+        <div class="search-box-wrap">
+          <input
+            type="text"
+            class="search-input"
+            id="searchInput"
+            placeholder="🔍 입금자명, 입금액(예: 35000), 품목(명함/스티커), 담당자 검색..."
+            oninput="renderDeposits()"
+          />
+          <button class="btn-icon-sm" onclick="clearSearch()">초기화</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deposit Table / List -->
+    <section class="deposit-list-card">
+      <table class="deposit-table">
+        <thead>
+          <tr>
+            <th style="width:140px;">입금일시</th>
+            <th style="width:210px;">입금자명 (보낸분)</th>
+            <th style="width:155px;">입금금액</th>
+            <th style="width:145px;">확인 상태</th>
+            <th>주문 품목 태그 &amp; 담당자 메모 (전 직원 실시간 공유)</th>
+            <th style="width:115px;">공유 / 관리</th>
+          </tr>
+        </thead>
+        <tbody id="depositTableBody">
+          <!-- Populated by app.js -->
+        </tbody>
+      </table>
+      <div class="empty-state" id="emptyStateBox" style="display:none;">
+        <h3>표시할 농협 입금 내역이 없습니다</h3>
+        <p style="font-size:13.5px; margin-bottom:14px;">
+          휴대폰에서 입금 문자가 자동 수신되거나, 상단 <strong>[➕ 입금 문자 / 7일 내역 등록]</strong> 버튼으로 일주일치 내역을 붙여넣으면 이곳에 실시간으로 표시됩니다.
+        </p>
+        <div style="display:flex; justify-content:center; gap:8px;">
+          <button class="btn btn-green" onclick="openPasteModal()">➕ 입금 문자 / 7일 내역 붙여넣기</button>
+          <button class="btn btn-outline" onclick="triggerSampleDeposit()">🔔 샘플 입금 테스트해보기</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal 1: Paste SMS / 7-Day Bulk History -->
+  <div class="modal-backdrop" id="pasteModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>➕ 농협 입금 문자 &amp; 최근 7일 내역 일괄 등록</h2>
+        <button class="modal-close" onclick="closePasteModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="info-box">
+          <strong>🔒 안심 자동 필터 작동 중:</strong><br/>
+          복사한 문자나 농협 엑셀 내역에 <strong>계좌 잔액(예: 잔액 12,340,000원)</strong>이나 <strong>출금 내역</strong>이 섞여 있어도, 프로그램이 <strong>잔액과 출금 내역은 100% 자동으로 삭제</strong>하고 오직 <strong>[입금일시 · 입금자명 · 입금금액]</strong>만 추출하여 직원들과 공유합니다. (중복 내역 자동 제외)
+        </div>
+
+        <div class="form-group">
+          <label>방법 1) 농협 입금 문자(SMS/카톡) 또는 농협 인터넷뱅킹 7일 내역 복사·붙여넣기</label>
+          <textarea
+            class="form-textarea"
+            id="bulkPasteTextarea"
+            placeholder="여기에 농협 입금 문자 여러 건이나 농협 인터넷뱅킹/스마트뱅킹에서 복사한 일주일치 거래내역을 그대로 붙여넣으세요.&#10;&#10;[예시 1 - 문자]&#10;[Web발신] NH농협 입금 55,000원 11/06 16:40 김민수(명함) 잔액 4,500,000원&#10;[NH농협] 11/06 15:10 입금 132,000원 (주)대박푸드 잔액 4,445,000원&#10;&#10;[예시 2 - 농협 엑셀/표 복사]&#10;2026-11-06 14:22:10   입금   9,500   이영희   잔액..."
+          ></textarea>
+        </div>
+
+        <div style="border-top:1px dashed var(--border-color); padding-top:12px;">
+          <label style="font-size:13.5px; font-weight:800; display:block; margin-bottom:8px;">방법 2) 1건 직접 빠른 입력</label>
+          <div style="display:grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap:8px;">
+            <input type="text" class="form-input" id="manualSender" placeholder="입금자명 (예: 홍길동)" />
+            <input type="number" class="form-input" id="manualAmount" placeholder="입금액 (예: 35000)" />
+            <input type="text" class="form-input" id="manualMemo" placeholder="메모 (예: 명함)" />
+            <button class="btn btn-navy" onclick="addManualDeposit()">직접 추가</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closePasteModal()">취소</button>
+        <button class="btn btn-green" onclick="processBulkPaste()">✅ 입금 내역 분석 및 실시간 등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Cloud Sync & SMS Auto-Forward Webhook Settings -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>⚙️ 실시간 직원 공유 DB &amp; 휴대폰 문자 자동연동 설정</h2>
+        <button class="modal-close" onclick="closeSettingsModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="info-box">
+          <strong>💡 전 직원 실시간 공유 원리:</strong><br/>
+          1) <strong>GitHub 클라우드 DB (`db-store` 브랜치)</strong>와 <strong>Google Drive (Apps Script)</strong> 연동을 모두 지원합니다.<br/>
+          2) 아래 <strong>[🔗 직원용 원클릭 공유링크 복사]</strong> 버튼으로 복사한 주소를 직원 단톡방에 보내주시면, 직원들은 클릭 한 번으로 최근 7일 내역과 실시간 입금을 함께 보고 체크할 수 있습니다.
+        </div>
+
+        <div class="form-group">
+          <label>1. GitHub 실시간 클라우드 DB 연동 (`db-store` 브랜치)</label>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+            <input type="text" class="form-input" id="ghOwnerInput" placeholder="GitHub 아이디 (기본: joonoodesign)" />
+            <input type="text" class="form-input" id="ghRepoInput" placeholder="저장소명 (기본: nh-deposit-monitor)" />
+          </div>
+          <input type="password" class="form-input" id="ghTokenInput" placeholder="GitHub Personal Access Token (ghp_... 또는 github_pat_...)" style="margin-top:6px;" />
+          <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+            <button class="btn btn-green" onclick="saveCloudSettings()">💾 설정 저장 및 즉시 연결</button>
+            <button class="btn btn-navy" onclick="copyStaffShareLink()">🔗 직원용 원클릭 공유링크(#ghSync) 복사</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="border-top:1px solid var(--border-color); padding-top:14px;">
+          <label>2. 휴대폰 농협 문자(SMS) ➔ 웹 자동 전송 웹훅 (Google Drive / Apps Script 연동)</label>
+          <p style="font-size:12.5px; color:var(--text-sub);">
+            아이폰(단축어) 또는 안드로이드(SMS 자동전달 앱)에서 농협 입금 문자가 올 때마다 24시간 무료로 받아서 웹 보드와 구글 시트에 동시 기록하는 웹훅 주소입니다.
+          </p>
+          <input type="url" class="form-input" id="gasWebhookInput" placeholder="Google Apps Script 웹 앱 URL (https://script.google.com/macros/s/.../exec)" />
+          <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="copyGasScriptCode()">📋 구글 Apps Script 서버 코드 원클릭 복사</button>
+            <button class="btn btn-outline" onclick="copyShortcutUrlGuide()">📱 휴대폰 직접 호출 URL 복사</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="border-top:1px solid var(--border-color); padding-top:14px;">
+          <label>3. 신규 입금 시 텔레그램(Telegram) 단톡방 자동 알림 (선택사항)</label>
+          <div style="display:grid; grid-template-columns: 1.2fr 1fr auto; gap:8px;">
+            <input type="text" class="form-input" id="tgBotTokenInput" placeholder="텔레그램 봇 토큰 (예: 123456:ABC-DEF...)" />
+            <input type="text" class="form-input" id="tgChatIdInput" placeholder="채팅방 ID (예: -100123456789)" />
+            <button class="btn btn-outline" onclick="testTelegramAlert()">테스트 발송</button>
+          </div>
+        </div>
+
+        <div class="form-group" style="border-top:1px solid var(--border-color); padding-top:14px;">
+          <label>4. 데이터 보관 관리</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="pruneOlderThan7Days()">🧹 7일(일주일) 경과 입금 내역 정리</button>
+            <button class="btn btn-outline" style="color:var(--danger); border-color:#feb2b2;" onclick="resetAllDataConfirm()">🗑️ 전체 내역 초기화</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeSettingsModal()">닫기</button>
+        <button class="btn btn-green" onclick="saveCloudSettings()">저장 완료</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Step-by-Step Tutorial Modal -->
+  <div class="modal-backdrop" id="tutorialModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>📖 주누디자인 농협 입금 확인 프로그램 — 사용법 튜토리얼</h2>
+        <button class="modal-close" onclick="closeTutorialModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="info-box">
+          <strong>🎯 핵심 요약:</strong> 대표님 휴대폰으로 오는 <strong>[NH농협 입금 문자]</strong>와 <strong>[최근 일주일치 입금 내역]</strong>을 전 직원이 웹에서 실시간(소리/음성 알림 포함)으로 함께 보고 <strong>[확인완료] 및 품목 메모</strong>를 공유하는 프로그램입니다.
+        </div>
+
+        <div class="form-group">
+          <label>STEP 1. 직원들과 실시간 화면 공유하기 (원클릭 링크)</label>
+          <p style="font-size:13px; color:var(--text-sub);">
+            상단 <strong>[🔗 직원 공유링크 복사]</strong> 버튼을 눌러 카카오톡으로 직원들에게 전달해 주세요.<br/>
+            직원들은 별도 로그인 없이 링크만 클릭하면 즉시 실시간 동기화가 연결되며, 컴퓨터나 휴대폰에 켜두면 새로운 입금이 들어올 때 <strong>"딩동~ 홍길동님 3만 5천원 입금되었습니다"</strong> 음성 알림이 자동으로 울립니다.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>STEP 2. 휴대폰 농협 입금 문자(SMS) 1초 자동 전송 설정법</label>
+          <div class="code-block">[아이폰(iOS) 단축어 자동화 설정 (1분 컷)]
+1. 아이폰 기본 [단축어] 앱 실행 ➔ 하단 [자동화] 탭 ➔ [+] 버튼 클릭
+2. [메시지] 선택 ➔ 메시지 포함 내용에 "입금" 및 "농협" 입력 ➔ [즉시 실행] 체크 후 다음
+3. [새로운 빈 자동화] ➔ [URL 내용 가져오기] 액션 추가
+   - 방법 A (구글 웹훅 연동 시): 설정 창의 웹훅 URL에 POST로 '단축어 입력(메시지 본문)' 전송
+   - 방법 B (초간단 바로 등록): 아래 주소 호출
+     https://joonoodesign.github.io/nh-deposit-monitor/?sms=[메시지 본문]
+
+[안드로이드(갤럭시) 설정 (1분 컷)]
+1. 플레이스토어에서 무료 'SMS Forwarder(문자 자동전달)' 앱 설치
+2. 필터 조건: '농협' + '입금' 포함 문자 수신 시 ➔ 웹훅(Webhook) URL로 자동 전송 설정</div>
+        </div>
+
+        <div class="form-group">
+          <label>STEP 3. 최근 일주일치(7일) 입금 내역 한 번에 올리기</label>
+          <p style="font-size:13px; color:var(--text-sub);">
+            농협 인터넷뱅킹/기업뱅킹 또는 문자 메시지함에서 최근 일주일치 내역을 드래그하여 복사한 뒤, 상단 <strong>[➕ 입금 문자 / 7일 내역 등록]</strong>에 붙여넣으면 <strong>잔액과 출금 내역은 자동으로 지워지고</strong> 입금 내역만 중복 없이 깔끔하게 등록됩니다.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>STEP 4. 직원 입금 확인 체크 &amp; 품목 태그 공유</label>
+          <p style="font-size:13px; color:var(--text-sub);">
+            입금 내역 우측의 <strong>[명함] [스티커] [전단지] [빌지] [리플렛] [카다로그] [시트지]</strong> 버튼을 클릭하거나 담당자 이름을 적고 <strong>[🚨 미확인 ➔ ✅ 확인완료]</strong> 버튼을 누르면 전 직원 화면에 1초 만에 반영됩니다.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <label style="margin-right:auto; font-size:12.5px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="chkHideTutorialStartup" onchange="toggleTutorialStartup(this.checked)" />
+          다음부터 접속 시 자동으로 열지 않기 (상단 버튼으로 언제든 다시 보기 가능)
+        </label>
+        <button class="btn btn-green" onclick="closeTutorialModal()">확인했습니다</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

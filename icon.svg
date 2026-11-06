@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="nhGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#009944"/>
+      <stop offset="60%" stop-color="#007a37"/>
+      <stop offset="100%" stop-color="#004b87"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#nhGrad)"/>
+  <circle cx="395" cy="115" r="42" fill="#ffbe00"/>
+  <text x="256" y="230" font-family="Pretendard, 'Malgun Gothic', sans-serif" font-size="120" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="-4">NH입금</text>
+  <rect x="86" y="280" width="340" height="120" rx="28" fill="#ffffff" fill-opacity="0.16"/>
+  <text x="256" y="358" font-family="Pretendard, 'Malgun Gothic', sans-serif" font-size="56" font-weight="800" fill="#ffeb7a" text-anchor="middle">실시간 확인</text>
+</svg>

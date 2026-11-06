@@ -1,0 +1,18 @@
+{
+  "name": "주누디자인 NH농협 실시간 입금 확인",
+  "short_name": "NH입금확인",
+  "description": "농협은행 최근 7일 및 실시간 입금 내역 전 직원 공유 대시보드",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f7f9",
+  "theme_color": "#00873c",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
