@@ -844,6 +844,9 @@ body.dark-mode .live-feed-banner {
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .quick-bar-grid {
+    grid-template-columns: 1fr !important;
+  }
   .deposit-table thead {
     display: none;
   }

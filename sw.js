@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nh-deposit-v1';
+const CACHE_NAME = 'nh-deposit-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -30,6 +30,7 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname.includes('api.github.com') || url.hostname.includes('script.google.com') || url.hostname.includes('api.telegram.org')) {
     return;
   }
+  // Network-first strategy so code updates always apply immediately
   event.respondWith(
     fetch(event.request)
       .then((res) => {

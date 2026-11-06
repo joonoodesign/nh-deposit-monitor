@@ -12,7 +12,9 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <link rel="apple-touch-icon" href="./icon.svg" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=2" />
+  <!-- 농협 엑셀(.xls / .xlsx / .csv) 직접 업로드 파싱용 SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <!-- Header -->
@@ -34,13 +36,13 @@
       <div class="header-controls">
         <div class="sync-status-pill" id="syncStatusPill" onclick="openSettingsModal()" title="클릭하여 실시간 동기화 설정 확인">
           <span class="pulse-dot" id="syncDot"></span>
-          <span id="syncStatusText">실시간 동기화 대기</span>
+          <span id="syncStatusText">실시간 동기화 중</span>
         </div>
         <button class="btn-header active-toggle" id="btnSoundToggle" onclick="toggleSoundAlert()">
           🔔 소리·음성 ON
         </button>
         <button class="btn-header btn-primary-gold" onclick="openPasteModal()">
-          ➕ 입금 문자 / 7일 내역 등록
+          ➕ 문자 / 엑셀 / 7일 내역 등록
         </button>
         <button class="btn-header" onclick="copyStaffShareLink()">
           🔗 직원 공유링크 복사
@@ -86,7 +88,7 @@
       <div class="kpi-card kpi-week">
         <div class="kpi-label">
           <span>🗓️ 최근 7일(일주일) 입금</span>
-          <span style="font-size:11px; color:var(--text-muted);">최근 7일 보관</span>
+          <span style="font-size:11px; color:var(--text-muted);">일주일 공유 내역</span>
         </div>
         <div class="kpi-value" id="kpiWeekCount">0건</div>
         <div class="kpi-sub" id="kpiWeekSub">일주일간 전체 공유 건수</div>
@@ -111,6 +113,50 @@
       </div>
     </section>
 
+    <!-- Main Screen Quick Input Bar (화면에서 바로 1초 등록 바) -->
+    <section class="control-panel" style="border-left: 5px solid var(--nh-green); padding: 12px 16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <div style="font-size:13.5px; font-weight:800; color:var(--nh-green); display:flex; align-items:center; gap:6px;">
+          <span>⚡ 빠른 입금 등록 바</span>
+          <span style="font-size:12px; font-weight:600; color:var(--text-sub);">(농협 문자 한 줄을 붙여넣거나 입금자명·금액을 바로 입력하세요)</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <label class="btn-icon-sm" style="cursor:pointer; background:var(--nh-green-light); color:var(--nh-green); border-color:var(--nh-green);">
+            📂 농협 엑셀(.xls/.xlsx/.csv) 파일 바로 올리기
+            <input type="file" accept=".xls,.xlsx,.csv,.txt" style="display:none;" onchange="handleExcelFileUpload(event)" />
+          </label>
+          <button class="btn-icon-sm" onclick="openPasteModal()">📋 여러 줄 / 7일치 붙여넣기 창 열기</button>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap:8px; margin-top:4px;" class="quick-bar-grid">
+        <input
+          type="text"
+          class="form-input"
+          id="quickBarSenderOrSms"
+          placeholder="입금자명 (예: 홍길동) 또는 농협 문자 전체 붙여넣기"
+          onkeydown="if(event.key==='Enter'){submitQuickBar();}"
+        />
+        <input
+          type="text"
+          class="form-input"
+          id="quickBarAmount"
+          placeholder="입금액 (예: 35,000 — 문자 붙여넣기 시 비워도 됨)"
+          onkeydown="if(event.key==='Enter'){submitQuickBar();}"
+        />
+        <input
+          type="text"
+          class="form-input"
+          id="quickBarMemo"
+          placeholder="품목/메모 (예: 명함, 스티커 - 선택사항)"
+          onkeydown="if(event.key==='Enter'){submitQuickBar();}"
+        />
+        <button class="btn btn-green" onclick="submitQuickBar()" style="white-space:nowrap;">
+          ➕ 즉시 등록
+        </button>
+      </div>
+    </section>
+
     <!-- Live Unconfirmed Banner -->
     <section class="live-feed-banner" id="liveUnconfirmedBanner" style="display:none;">
       <div class="live-feed-left">
@@ -127,7 +173,7 @@
     <section class="control-panel">
       <div class="day-tabs-row">
         <div class="day-tabs" id="dayTabsContainer">
-          <!-- Dynamically populated: 최근 7일 전체, 오늘, 어제, D-2 ... -->
+          <!-- Dynamically populated -->
         </div>
         <div style="font-size:12px; color:var(--text-muted); font-weight:600;">
           💡 직원이 <strong>[확인완료]</strong> 또는 <strong>품목 태그·메모</strong>를 누르면 전 직원 화면에 즉시 공유됩니다.
@@ -172,45 +218,63 @@
         </tbody>
       </table>
       <div class="empty-state" id="emptyStateBox" style="display:none;">
-        <h3>표시할 농협 입금 내역이 없습니다</h3>
+        <h3>현재 선택한 탭에 표시할 농협 입금 내역이 없습니다</h3>
         <p style="font-size:13.5px; margin-bottom:14px;">
-          휴대폰에서 입금 문자가 자동 수신되거나, 상단 <strong>[➕ 입금 문자 / 7일 내역 등록]</strong> 버튼으로 일주일치 내역을 붙여넣으면 이곳에 실시간으로 표시됩니다.
+          위 <strong>[⚡ 빠른 입금 등록 바]</strong>에 입력하거나, <strong>[➕ 문자 / 엑셀 / 7일 내역 등록]</strong> 버튼으로 일주일치 내역을 등록해 보세요.
         </p>
-        <div style="display:flex; justify-content:center; gap:8px;">
-          <button class="btn btn-green" onclick="openPasteModal()">➕ 입금 문자 / 7일 내역 붙여넣기</button>
+        <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-green" onclick="openPasteModal()">➕ 입금 문자 / 엑셀 / 7일 내역 등록</button>
           <button class="btn btn-outline" onclick="triggerSampleDeposit()">🔔 샘플 입금 테스트해보기</button>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Modal 1: Paste SMS / 7-Day Bulk History -->
+  <!-- Modal 1: Paste SMS / Excel Upload / 7-Day Bulk History -->
   <div class="modal-backdrop" id="pasteModal">
     <div class="modal-box">
       <div class="modal-header">
-        <h2>➕ 농협 입금 문자 &amp; 최근 7일 내역 일괄 등록</h2>
+        <h2>➕ 농협 입금 문자 · 엑셀 파일 · 최근 7일 내역 일괄 등록</h2>
         <button class="modal-close" onclick="closePasteModal()">×</button>
       </div>
       <div class="modal-body">
         <div class="info-box">
           <strong>🔒 안심 자동 필터 작동 중:</strong><br/>
-          복사한 문자나 농협 엑셀 내역에 <strong>계좌 잔액(예: 잔액 12,340,000원)</strong>이나 <strong>출금 내역</strong>이 섞여 있어도, 프로그램이 <strong>잔액과 출금 내역은 100% 자동으로 삭제</strong>하고 오직 <strong>[입금일시 · 입금자명 · 입금금액]</strong>만 추출하여 직원들과 공유합니다. (중복 내역 자동 제외)
+          농협 문자(SMS/카톡 알림톡), 농협 인터넷뱅킹/기업뱅킹 화면 복사, 또는 다운로드한 엑셀 파일을 넣으시면 <strong>계좌 잔액과 출금 내역은 100% 자동으로 삭제</strong>되고 오직 <strong>[입금일시 · 입금자명 · 입금금액]</strong>만 추출됩니다.
         </div>
 
+        <!-- 방법 A: 농협 엑셀 파일 업로드 -->
+        <div class="form-group" style="background:var(--bg-main); padding:12px; border-radius:8px; border:1px dashed var(--nh-green);">
+          <label style="color:var(--nh-green);">📂 방법 1) 농협 인터넷뱅킹/빠른조회 엑셀 파일(.xls, .xlsx, .csv) 직접 선택</label>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:4px; flex-wrap:wrap;">
+            <input type="file" id="modalExcelFileInput" accept=".xls,.xlsx,.csv,.txt" onchange="handleExcelFileUpload(event)" />
+            <span style="font-size:12px; color:var(--text-sub);">파일을 선택하면 즉시 아래 미리보기에 입금 내역이 추출됩니다.</span>
+          </div>
+        </div>
+
+        <!-- 방법 B: 문자 / 뱅킹 화면 복사 붙여넣기 -->
         <div class="form-group">
-          <label>방법 1) 농협 입금 문자(SMS/카톡) 또는 농협 인터넷뱅킹 7일 내역 복사·붙여넣기</label>
+          <label>📋 방법 2) 농협 입금 문자(SMS/카톡) 또는 인터넷뱅킹 화면 드래그 복사·붙여넣기</label>
           <textarea
             class="form-textarea"
             id="bulkPasteTextarea"
-            placeholder="여기에 농협 입금 문자 여러 건이나 농협 인터넷뱅킹/스마트뱅킹에서 복사한 일주일치 거래내역을 그대로 붙여넣으세요.&#10;&#10;[예시 1 - 문자]&#10;[Web발신] NH농협 입금 55,000원 11/06 16:40 김민수(명함) 잔액 4,500,000원&#10;[NH농협] 11/06 15:10 입금 132,000원 (주)대박푸드 잔액 4,445,000원&#10;&#10;[예시 2 - 농협 엑셀/표 복사]&#10;2026-11-06 14:22:10   입금   9,500   이영희   잔액..."
+            oninput="updatePastePreview()"
+            placeholder="여기에 농협 문자나 카톡 알림톡, 인터넷뱅킹 거래내역 표, 또는 '입금자명 금액'을 붙여넣으세요!&#10;&#10;[지원 형식 예시]&#10;1) 문자: [Web발신] NH농협 입금 55,000원 04/14 16:40 김민수 잔액 4,500,000원&#10;2) 카톡 알림톡 (여러 줄): 입금금액 : 35,000원 / 입금자명 : 홍길동 / 입금일시 : 2026/04/14 15:20&#10;3) 농협 뱅킹 표 복사: 2026.04.14 14:22   0   55,000   4,500,000   이영희   대구지점&#10;4) 간편 입력: 홍길동 35,000"
           ></textarea>
         </div>
 
+        <!-- 실시간 파싱 미리보기 영역 -->
+        <div class="form-group" id="pastePreviewBox" style="display:none; background:var(--bg-main); padding:12px; border-radius:8px; border:1px solid var(--border-color);">
+          <label id="pastePreviewTitle" style="color:var(--nh-green);">✅ 실시간 인식 결과 미리보기 (0건)</label>
+          <div id="pastePreviewList" style="max-height:150px; overflow-y:auto; font-size:13px; margin-top:6px; display:flex; flex-direction:column; gap:4px;"></div>
+        </div>
+
+        <!-- 방법 C: 1건 직접 입력 -->
         <div style="border-top:1px dashed var(--border-color); padding-top:12px;">
-          <label style="font-size:13.5px; font-weight:800; display:block; margin-bottom:8px;">방법 2) 1건 직접 빠른 입력</label>
+          <label style="font-size:13.5px; font-weight:800; display:block; margin-bottom:8px;">✍️ 방법 3) 1건 직접 입력</label>
           <div style="display:grid; grid-template-columns: 1.2fr 1fr 1fr auto; gap:8px;">
             <input type="text" class="form-input" id="manualSender" placeholder="입금자명 (예: 홍길동)" />
-            <input type="number" class="form-input" id="manualAmount" placeholder="입금액 (예: 35000)" />
+            <input type="text" class="form-input" id="manualAmount" placeholder="입금액 (예: 35,000)" />
             <input type="text" class="form-input" id="manualMemo" placeholder="메모 (예: 명함)" />
             <button class="btn btn-navy" onclick="addManualDeposit()">직접 추가</button>
           </div>
@@ -218,7 +282,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closePasteModal()">취소</button>
-        <button class="btn btn-green" onclick="processBulkPaste()">✅ 입금 내역 분석 및 실시간 등록</button>
+        <button class="btn btn-green" onclick="processBulkPaste()">✅ 인식된 입금 내역 즉시 등록하기</button>
       </div>
     </div>
   </div>
@@ -243,7 +307,7 @@
             <input type="text" class="form-input" id="ghOwnerInput" placeholder="GitHub 아이디 (기본: joonoodesign)" />
             <input type="text" class="form-input" id="ghRepoInput" placeholder="저장소명 (기본: nh-deposit-monitor)" />
           </div>
-          <input type="password" class="form-input" id="ghTokenInput" placeholder="GitHub Personal Access Token (ghp_... 또는 github_pat_...)" style="margin-top:6px;" />
+          <input type="password" class="form-input" id="ghTokenInput" placeholder="GitHub Personal Access Token (ghp_... 또는 gho_...)" style="margin-top:6px;" />
           <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
             <button class="btn btn-green" onclick="saveCloudSettings()">💾 설정 저장 및 즉시 연결</button>
             <button class="btn btn-navy" onclick="copyStaffShareLink()">🔗 직원용 원클릭 공유링크(#ghSync) 복사</button>
@@ -310,7 +374,7 @@
           <label>STEP 2. 휴대폰 농협 입금 문자(SMS) 1초 자동 전송 설정법</label>
           <div class="code-block">[아이폰(iOS) 단축어 자동화 설정 (1분 컷)]
 1. 아이폰 기본 [단축어] 앱 실행 ➔ 하단 [자동화] 탭 ➔ [+] 버튼 클릭
-2. [메시지] 선택 ➔ 메시지 포함 내용에 "입금" 및 "농협" 입력 ➔ [즉시 실행] 체크 후 다음
+2. [메시지] 선택 ➔ 메시지 포함 내용에 "입금" 입력 ➔ [즉시 실행] 체크 후 다음
 3. [새로운 빈 자동화] ➔ [URL 내용 가져오기] 액션 추가
    - 방법 A (구글 웹훅 연동 시): 설정 창의 웹훅 URL에 POST로 '단축어 입력(메시지 본문)' 전송
    - 방법 B (초간단 바로 등록): 아래 주소 호출
@@ -324,14 +388,7 @@
         <div class="form-group">
           <label>STEP 3. 최근 일주일치(7일) 입금 내역 한 번에 올리기</label>
           <p style="font-size:13px; color:var(--text-sub);">
-            농협 인터넷뱅킹/기업뱅킹 또는 문자 메시지함에서 최근 일주일치 내역을 드래그하여 복사한 뒤, 상단 <strong>[➕ 입금 문자 / 7일 내역 등록]</strong>에 붙여넣으면 <strong>잔액과 출금 내역은 자동으로 지워지고</strong> 입금 내역만 중복 없이 깔끔하게 등록됩니다.
-          </p>
-        </div>
-
-        <div class="form-group">
-          <label>STEP 4. 직원 입금 확인 체크 &amp; 품목 태그 공유</label>
-          <p style="font-size:13px; color:var(--text-sub);">
-            입금 내역 우측의 <strong>[명함] [스티커] [전단지] [빌지] [리플렛] [카다로그] [시트지]</strong> 버튼을 클릭하거나 담당자 이름을 적고 <strong>[🚨 미확인 ➔ ✅ 확인완료]</strong> 버튼을 누르면 전 직원 화면에 1초 만에 반영됩니다.
+            농협 인터넷뱅킹/기업뱅킹에서 <strong>엑셀 파일(.xls/.xlsx)</strong>로 받은 파일을 그대로 업로드하거나, 화면을 드래그 복사하여 <strong>[➕ 문자 / 엑셀 / 7일 내역 등록]</strong>에 붙여넣으면 <strong>잔액과 출금 내역은 자동으로 지워지고</strong> 입금 내역만 깔끔하게 등록됩니다.
           </p>
         </div>
       </div>
@@ -345,6 +402,6 @@
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js?v=2"></script>
 </body>
 </html>
